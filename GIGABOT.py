@@ -4,7 +4,7 @@ import users
 
 from users import is_user_admin
 
-TOKEN = "6638931327:AAGpD1nJr9pv531VQSGqllerCE72eMlsRS0"
+TOKEN = "API"
 bot = telebot.TeleBot(TOKEN)
 TARGET_CHAT_ID = -1001550460619
 
