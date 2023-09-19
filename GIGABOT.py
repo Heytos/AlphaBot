@@ -1,62 +1,61 @@
 import telebot
-import time
-
+import datetime
 import users
 
-from telebot import types
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from users import is_user_admin
 
-bot = telebot.TeleBot('TG_BOT_API')
+TOKEN = "6638931327:AAGpD1nJr9pv531VQSGqllerCE72eMlsRS0"
+bot = telebot.TeleBot(TOKEN)
+TARGET_CHAT_ID = -1001550460619
 
-def get_main_keyboard():
-    markup = types.ReplyKeyboardMarkup(row_width=2)
-    button1 = types.KeyboardButton('Вывести текущий рейтинг')
-    button2 = types.KeyboardButton('Вернуться в главное меню')
-    markup.add(button1, button2)
-    return markup
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    markup = get_main_keyboard()
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+@bot.message_handler(commands=['rating'])
+def send_rating(message):
+    try:
+        conn = users.connect_to_db()
+        all_users = users.get_all_users(conn)
+        formatted_users = users.format_users_as_text(all_users)
+        bot.send_message(message.chat.id, formatted_users)
+        conn.close()
+    except Exception as e:
+        print("Error:", e)
+        bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 
-    bot.register_next_step_handler(message, on_click)
-@bot.message_handler(func=lambda message: True)
+@bot.message_handler(commands=['clean_db'])
+def clear_database(message):
+    if message.chat.id == TARGET_CHAT_ID and is_user_admin(bot, message.from_user.id, message.chat.id):
+        conn = users.connect_to_db()
+        users.clear_users_table(conn)
+        conn.close()
+        bot.send_message(message.chat.id, "База данных очищена!")
+    else:
+        bot.send_message(message.chat.id, "У вас нет прав на выполнение этой команды.")
+
+@bot.message_handler(content_types=['text', 'photo'])
 def on_click(message):
+    if message.chat.id != TARGET_CHAT_ID:
+        return
+
     user_id = message.from_user.id
-    user = users.get_user_by_id(user_id)
+    username = message.from_user.username
 
+    conn = users.connect_to_db()
+
+    user = users.get_user_by_id(conn, user_id)
     if not user:
-        users.add_new_user(user_id)
+        users.add_new_user(conn, user_id, username)
 
-    users.sum_alpha_amount(user_id)
-
-    if message.text == 'Вывести текущий рейтинг':
-        pass
-        
-    elif message.text == 'Вернуться в главное меню':
-        markup = get_main_keyboard()
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
-
-def collect_monthly_info():
-    conn = users.connect_to_db()
-    members = users.get_all_users(conn)
+    users.sum_alpha_amount(conn, user_id)
     conn.close()
 
-    message = 'Месячный отчет:\n\n'
-    for user in members:
-        tg_id, username, alpha_amount = user
-        message += f"ID: {tg_id}, Имя: {username}, Счет: {alpha_amount}\n"
 
-    bot.send_message(YOUR_CHAT_ID, message)
+if __name__ == "__main__":
+    bot.polling(none_stop=True)
 
-def clean_old_data():
-    month_ago = datetime.now() - relativedelta(months=1)
-    conn = users.connect_to_db()
-    c = conn.cursor()
-    c.execute("DELETE FROM your_table WHERE your_date_column < ?", (month_ago,))
-    conn.commit()
-    conn.close()
 
-bot.polling(none_stop=True)
+
+
+
+
+
+
